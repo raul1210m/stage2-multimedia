@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hiking Trail Planner</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f2f5;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        h3 {
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            position: relative;
+            margin-top: 20px;
+            text-align: center;
+        }
+        canvas {
+            background-color: #fff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 800px;
+        }
+        .legend {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hiking Trail Planner</h1>
+        <div class="chart-container">
+            <h3>Profil de Elevație & Puncte de Interes</h3>
+            <canvas id="elevationCanvas" width="800" height="400"></canvas>
+            <div class="legend">
+                <span style="color: #D32F2F;">●</span> Puncte de interes | 
+                <span style="color: #2E7D32;">▬</span> Traseu
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const routeData = [
+            { km: 0, alt: 800, poi: "Start" },
+            { km: 1.5, alt: 950 },
+            { km: 3, alt: 1250, poi: "Cascada Mare" },
+            { km: 4.5, alt: 1100 },
+            { km: 6, alt: 1600 },
+            { km: 7.5, alt: 1900, poi: "Vârf Panoramic" },
+            { km: 9, alt: 1400 },
+            { km: 10.5, alt: 1450, poi: "Lacul Albastru" },
+            { km: 12, alt: 800, poi: "Sosire" }
+        ];
+
+        const canvas = document.getElementById('elevationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.addEventListener('click', function (event) {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const clickY = event.clientY - rect.top;
+
+    routeData.forEach(point => {
+        if (point.poi) {
+            const x = getX(point.km);
+            const y = getY(point.alt);
+            const distance = Math.hypot(clickX - x, clickY - y);
+
+            if (distance < 10) {
+                if (point.poi.toLowerCase().includes("vârf")) {
+                    playSound("varf");
+                } else if (point.poi.toLowerCase().includes("lac")) {
+                    playSound("apa");
+                } else {
+                    playSound("default");
+                }
+            }
+        }
+    });
+});
+
+        const padding = 60;
+        const width = canvas.width - padding * 2;
+        const height = canvas.height - padding * 2;
+
+        function getX(km) {
+            const maxKm = Math.max(...routeData.map(d => d.km));
+            return padding + (km / maxKm) * width;
+        }
+
+        function getY(alt) {
+            const maxAlt = Math.max(...routeData.map(d => d.alt)) + 100;
+            const minAlt = 0; 
+            return canvas.height - padding - ((alt - minAlt) / (maxAlt - minAlt)) * height;
+        }
+
+        function drawChart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1;
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+
+            ctx.fillStyle = '#666';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("Distanță (km)", canvas.width / 2, canvas.height - 20);
+            
+            ctx.save();
+            ctx.translate(20, canvas.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText("Altitudine (m)", 0, 0);
+            ctx.restore();
+
+            ctx.beginPath();
+            ctx.moveTo(getX(routeData[0].km), getY(routeData[0].alt));
+            for (let i = 1; i < routeData.length; i++) {
+                ctx.lineTo(getX(routeData[i].km), getY(routeData[i].alt));
+            }
+            ctx.lineTo(getX(routeData[routeData.length-1].km), canvas.height - padding);
+            ctx.lineTo(getX(routeData[0].km), canvas.height - padding);
+            ctx.closePath();
+
+            const gradient = ctx.createLinearGradient(0, padding, 0, canvas.height - padding);
+            gradient.addColorStop(0, 'rgba(76, 175, 80, 0.7)');
+            gradient.addColorStop(1, 'rgba(76, 175, 80, 0.1)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(getX(routeData[0].km), getY(routeData[0].alt));
+            for (let point of routeData) {
+                ctx.lineTo(getX(point.km), getY(point.alt));
+            }
+            ctx.strokeStyle = '#2E7D32';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+
+            routeData.forEach(point => {
+                if (point.poi) {
+                    const x = getX(point.km);
+                    const y = getY(point.alt);
+
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, canvas.height - padding);
+                    ctx.strokeStyle = '#ddd';
+                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#D32F2F';
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#333';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(point.poi, x, y - 15);
+                    
+                    ctx.fillStyle = '#666';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(point.alt + 'm', x, y + 20);
+                }
+            });
+        }
+
+        drawChart();
+
+    </script>
+    <script>
+   
+
+    let audioContext;
+
+    function initAudio() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(type) {
+        initAudio();
+
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        switch (type) {
+            case "varf":
+                oscillator.frequency.value = 880; 
+                break;
+            case "apa":
+                oscillator.frequency.value = 440;
+                break;
+            default:
+                oscillator.frequency.value = 600;
+        }
+
+        oscillator.type = 'sine';
+        gainNode.gain.value = 0.1;
+
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.2);
+    }
+</script>
+</body>
+</html>
